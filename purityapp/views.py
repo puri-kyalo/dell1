@@ -1,0 +1,172 @@
+import base64
+import json
+
+from django.http import HttpResponse
+from django.shortcuts import render, redirect
+from requests.auth import HTTPBasicAuth
+
+from purityapp.models import Member
+from purityapp.forms import ProductsForm, ImagesUploadForm
+from purityapp.forms import AppointmentForm
+from purityapp.models import Products, ImageModel
+from purityapp.forms import OrderedForm
+import requests
+from purityapp.credentials import MpesaC2bCredential, MpesaAccessToken, LipanaMpesaPpassword
+# Create your views here.
+def register(request):
+    if request.method == 'POST':
+        member = Member(firstname=request.POST['firstname'], lastname=request.POST['lastname'],
+                        email=request.POST['email'], username=request.POST['username'],
+                        password=request.POST['password'])
+        member.save()
+        return redirect('/')
+    else:
+        return render(request, 'register.html')
+
+def login(request):
+    return render(request, 'login.html')
+
+def index(request):
+    if request.method == 'POST':
+        if Member.objects.filter(username=request.POST['username'],
+                                 password=request.POST['password'],).exists():
+            member = Member.objects.get(username=request.POST['username'],password=request.POST['password'],)
+            return render(request, 'index.html', {'member': member})
+        else:
+            return render(request, 'login.html')
+    else:
+        return render(request, 'login.html')
+
+def inner(request):
+        return render(request, 'inner-page.html')
+
+def about(request):
+    return render(request, 'about.html')
+
+def services(request):
+    return render(request, 'services.html')
+
+def contact(request):
+    return render(request, 'contact.html')
+
+def departments(request):
+    return render(request, 'departments.html')
+
+def doctors(request):
+    return render(request, 'doctors.html')
+
+def gallery(request):
+    return render(request, 'gallery.html')
+
+def testimonials(request):
+    return render(request, 'testimonials.html')
+
+
+def products(request):
+    if request.method == "POST":
+        form = ProductsForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("/")
+    else:
+        form = ProductsForm()
+        return render(request, 'products.html', {'form': form})
+
+def appointment(request):
+    if request.method == "POST":
+        form = AppointmentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("/appointment")
+    else:
+        form = AppointmentForm()
+    return render(request, 'appointment.html', {'form': form})
+
+def show(request):
+    products = Products.objects.all()
+    return render(request, 'show.html', {'products': products})
+
+def delete(request, id):
+    product = Products.objects.get(id=id)
+    product.delete()
+    return redirect('/show')
+
+def edit(request, id):
+    product = Products.objects.get(id=id)
+    return render(request, 'edit.html', {'product': product})
+
+def update(request, id):
+    product = Products.objects.get(id=id)
+    form = ProductsForm(request.POST, instance=product)
+    if form.is_valid():
+        form.save()
+        return redirect('/show')
+    else:
+        return render(request, 'edit.html', {'product':product})
+
+def token(request):
+    consumer_key = 'USTR7PnePw7ewYcTsBA3IjPAHoAKega3'
+    consumer_secret = '7BKY8qDITDmdmT3y'
+    api_URL = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
+
+    r = requests.get(api_URL, auth=HTTPBasicAuth(
+        consumer_key, consumer_secret))
+    mpesa_access_token = json.loads(r.text)
+    validated_mpesa_access_token = mpesa_access_token["access_token"]
+
+    return render(request, 'token.html', {"token": validated_mpesa_access_token})
+
+def pay(request):
+    return render(request, 'pay.html')
+
+def stk(request):
+    if request.method == "POST":
+        phone = request.POST['phone']
+        amount = request.POST['amount']
+        access_token = MpesaAccessToken.validated_mpesa_access_token
+        api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+        headers = {"Authorization": "Bearer %s" % access_token}
+        request = {
+            "BusinessShortCode": LipanaMpesaPpassword.Business_short_code,
+            "Password": LipanaMpesaPpassword.decode_password,
+            "Timestamp": LipanaMpesaPpassword.lipa_time,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount,
+            "PartyA": phone,
+            "PartyB": LipanaMpesaPpassword.Business_short_code,
+            "PhoneNumber": phone,
+            "CallBackURL": "https://sandbox.safaricom.co.ke/mpesa/",
+            "AccountReference": "Apen Softwares",
+            "TransactionDesc": "Web Development Charges"
+        }
+        response = requests.post(api_url, json=request, headers=headers)
+        return HttpResponse("Success")
+
+def ordered(request):
+    if request.method == 'POST':
+        form = OrderedForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('/ordered')
+    else:
+        form = OrderedForm()
+    return render(request, 'ordered.html', {'form': form})
+
+def upload_image(request):
+    if request.method == 'POST':
+        form = ImagesUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            return redirect('/image')
+    else:
+        form = ImagesUploadForm()
+    return render(request, 'upload_image.html', {'form': form})
+
+def show_image(request):
+    images = ImageModel.objects.all()
+    return render(request, 'show_image.html', {'images': images})
+
+def imagedelete(request, id):
+    image = ImageModel.objects.get(id=id)
+    image.delete()
+    return redirect('/image')
